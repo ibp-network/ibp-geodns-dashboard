@@ -4,6 +4,154 @@ import Loading from '../components/Loading/Loading';
 import { formatMonth, getUptimeClass } from '../utils/common';
 import './BillingView.css';
 
+const SYSTEM_DOMAINS = new Set([
+  'rpc.dotters.network',
+  'sys.dotters.network',
+  'rpc.ibp.network',
+  'sys.ibp.network'
+]);
+
+const normalizeDomain = (value) => {
+  if (!value) return '';
+
+  return value
+    .toLowerCase()
+    .replace(/^(https?|wss?):\/\//, '')
+    .replace(/:\d+.*$/, '')
+    .replace(/\/.*$/, '');
+};
+
+const shouldExcludeDowntimeEvent = (event) => {
+  if (!event) return false;
+
+  const candidate = normalizeDomain(event.domain_name || event.endpoint);
+  return SYSTEM_DOMAINS.has(candidate);
+};
+
+const filterDowntimeEvents = (events = []) =>
+  events.filter((event) => !shouldExcludeDowntimeEvent(event));
+
+const mergePeriods = (periods) => {
+  if (periods.length === 0) {
+    return [];
+  }
+
+  const sorted = periods.sort((a, b) => a.start - b.start);
+  const merged = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const last = merged[merged.length - 1];
+
+    if (current.start > last.end) {
+      merged.push({ ...current });
+    } else {
+      last.end = Math.max(last.end, current.end);
+    }
+  }
+
+  return merged;
+};
+
+const calculateServiceUptime = (filteredEvents, rangeStart, rangeEnd) => {
+  if (!filteredEvents || filteredEvents.length === 0) {
+    return 100;
+  }
+
+  const totalMs = rangeEnd.getTime() - rangeStart.getTime();
+  if (totalMs <= 0) {
+    return 100;
+  }
+
+  const periods = filteredEvents
+    .map((event) => {
+      const eventStart = new Date(event.start_time);
+      const rawEnd = event.end_time ? new Date(event.end_time) : rangeEnd;
+      const clampedStart = eventStart < rangeStart ? rangeStart : eventStart;
+      const clampedEnd = rawEnd > rangeEnd ? rangeEnd : rawEnd;
+
+      if (clampedEnd <= clampedStart) {
+        return null;
+      }
+
+      return {
+        start: clampedStart.getTime(),
+        end: clampedEnd.getTime()
+      };
+    })
+    .filter(Boolean);
+
+  if (periods.length === 0) {
+    return 100;
+  }
+
+  const merged = mergePeriods(periods);
+  const downtimeMs = merged.reduce((sum, period) => sum + (period.end - period.start), 0);
+  const uptime = ((totalMs - downtimeMs) / totalMs) * 100;
+
+  return Math.max(0, Math.min(100, uptime));
+};
+
+const recalculateBillingData = (billingData, rangeStart, rangeEnd) => {
+  if (!billingData || !Array.isArray(billingData.members)) {
+    return billingData;
+  }
+
+  const updatedMembers = billingData.members.map((member) => {
+    const updatedServices = (member.services || []).map((service) => {
+      const filteredEvents = filterDowntimeEvents(service.downtime_events || []);
+      const uptimePercentage = calculateServiceUptime(
+        filteredEvents,
+        rangeStart,
+        rangeEnd
+      );
+
+      const meetsSla = uptimePercentage >= 99.9;
+      let credits = 0;
+
+      if (!meetsSla) {
+        if (uptimePercentage >= 99.0) {
+          credits = service.base_cost * 0.1;
+        } else if (uptimePercentage >= 95.0) {
+          credits = service.base_cost * 0.25;
+        } else {
+          credits = service.base_cost * 0.5;
+        }
+      }
+
+      const billedCost = service.base_cost - credits;
+
+      return {
+        ...service,
+        downtime_events: filteredEvents,
+        uptime_percentage: uptimePercentage,
+        meets_sla: meetsSla,
+        credits,
+        billed_cost: billedCost
+      };
+    });
+
+    const total_base_cost = updatedServices.reduce((sum, svc) => sum + (svc.base_cost || 0), 0);
+    const total_credits = updatedServices.reduce((sum, svc) => sum + (svc.credits || 0), 0);
+    const total_billed = updatedServices.reduce((sum, svc) => sum + (svc.billed_cost || 0), 0);
+    const meets_sla = updatedServices.every((svc) => svc.meets_sla);
+
+    return {
+      ...member,
+      services: updatedServices,
+      total_base_cost,
+      total_credits,
+      total_billed,
+      meets_sla
+    };
+  });
+
+  return {
+    ...billingData,
+    members: updatedMembers
+  };
+};
+
 const BillingView = () => {
   const [members, setMembers] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -59,6 +207,8 @@ const BillingView = () => {
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
+      const periodStart = new Date(currentYear, currentMonth - 1, 1);
+      const periodEnd = now;
       
       const billingRes = await ApiHelper.fetchBillingBreakdown({ 
         member: memberName,
@@ -66,7 +216,12 @@ const BillingView = () => {
         year: currentYear,
         include_downtime: true 
       });
-      setMemberBilling(billingRes.data);
+      const recalculatedBilling = recalculateBillingData(
+        billingRes.data,
+        periodStart,
+        periodEnd
+      );
+      setMemberBilling(recalculatedBilling);
     } catch (error) {
       console.error('Error loading member billing:', error);
     }

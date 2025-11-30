@@ -36,6 +36,7 @@ go.sum
 /src/IBDash/node_modules
 /src/IBDash/node_modules/*
 /src/IBDash/package-lock.json
-/public
-/public/*
+# Ignore generated public assets but keep base HTML
+/public/static/imgs/
+/public/static/imgs/*
 

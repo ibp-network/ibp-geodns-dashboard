@@ -25,8 +25,8 @@ const MemberView = () => {
         ApiHelper.fetchMembers(),
         ApiHelper.fetchCurrentDowntime()
       ]);
-      setMembers(membersRes.data);
-      setDowntime(downtimeRes.data);
+      setMembers(Array.isArray(membersRes.data) ? membersRes.data : []);
+      setDowntime(Array.isArray(downtimeRes.data) ? downtimeRes.data : []);
       setLoading(false);
     } catch (error) {
       console.error('Error loading data:', error);

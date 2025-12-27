@@ -88,16 +88,19 @@ export const calculateSiteUptime = (downtimeEvents, startDate, endDate, serviceC
   return Math.max(0, Math.min(100, uptimePercentage));
 };
 
-export const getDownServices = (memberName, memberServices, downtime) => {
-  const memberDowntime = downtime.filter(dt => dt.member_name === memberName);
+export const getDownServices = (memberName, memberServices = [], downtime = []) => {
+  const services = Array.isArray(memberServices) ? memberServices : [];
+  const downtimeEvents = Array.isArray(downtime) ? downtime : [];
+
+  const memberDowntime = downtimeEvents.filter(dt => dt.member_name === memberName);
   const downServices = new Set();
   
   memberDowntime.forEach(dt => {
     if (dt.check_type === 'site') {
-      memberServices.forEach(service => downServices.add(service));
+      services.forEach(service => downServices.add(service));
     } else if (dt.domain_name) {
       const serviceName = domainToServiceName(dt.domain_name);
-      const matchingService = memberServices.find(s => 
+      const matchingService = services.find(s => 
         s.toLowerCase() === serviceName?.toLowerCase()
       );
       

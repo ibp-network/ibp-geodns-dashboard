@@ -1,8 +1,9 @@
 import { getDownServices, getMemberHealth } from './common';
 
-export const getMemberStatus = (member, downtime) => {
-  const health = getMemberHealth(member, downtime);
-  const hasSiteDowntime = downtime.some(dt =>
+export const getMemberStatus = (member, downtime = []) => {
+  const downtimeEvents = Array.isArray(downtime) ? downtime : [];
+  const health = getMemberHealth(member, downtimeEvents);
+  const hasSiteDowntime = downtimeEvents.some(dt =>
     dt.member_name === member.name &&
     dt.check_type === 'site' &&
     !dt.end_time
@@ -13,8 +14,9 @@ export const getMemberStatus = (member, downtime) => {
   return 'operational';
 };
 
-export const getServiceStatus = (memberName, serviceName, downtime, member) => {
-  const memberDowntime = downtime.filter(dt => dt.member_name === memberName);
+export const getServiceStatus = (memberName, serviceName, downtime = [], member) => {
+  const downtimeEvents = Array.isArray(downtime) ? downtime : [];
+  const memberDowntime = downtimeEvents.filter(dt => dt.member_name === memberName);
   const downServices = getDownServices(memberName, member?.services || [], memberDowntime);
   
   if (downServices.has(serviceName)) return 'offline';

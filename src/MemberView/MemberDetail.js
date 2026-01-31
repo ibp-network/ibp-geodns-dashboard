@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ApiHelper from '../components/ApiHelper/ApiHelper';
 import Charts from '../components/Charts/Charts';
 import Loading from '../components/Loading/Loading';
+import { buildActiveServiceSet, domainToServiceName, filterActiveServiceDowntime } from '../utils/common';
 import './MemberDetail.css';
 
 const MemberDetail = () => {
@@ -104,23 +105,33 @@ const MemberDetail = () => {
         end: dateRange.end.toISOString().split('T')[0]
       };
 
-      const [membersRes, statsRes, billingRes, downtimeRes] = await Promise.all([
+      const [membersRes, statsRes, billingRes, downtimeRes, servicesRes] = await Promise.all([
         ApiHelper.fetchMembers(),
         ApiHelper.fetchMemberStats(memberName, params),
         ApiHelper.fetchBillingBreakdown({ member: memberName, include_downtime: true }),
-        ApiHelper.fetchDowntimeEvents({ member: memberName, ...params })
+        ApiHelper.fetchDowntimeEvents({ member: memberName, ...params }),
+        ApiHelper.fetchServices()
       ]);
 
+      const servicesData = Array.isArray(servicesRes.data) ? servicesRes.data : [];
+      const activeServiceSet = buildActiveServiceSet(servicesData);
+
       const memberData = membersRes.data.find(m => m.name === memberName);
-      setMember(memberData);
+      const memberActiveServices = (memberData?.services || []).filter(service =>
+        activeServiceSet.size === 0 ? true : activeServiceSet.has(service.toLowerCase())
+      );
+
+      const sanitizedMember = memberData ? { ...memberData, services: memberActiveServices } : null;
+      setMember(sanitizedMember);
       
       // Calculate proper site uptime from downtime events
       const downtimeData = Array.isArray(downtimeRes.data) ? downtimeRes.data : [];
-      setDowntime(downtimeData);
+      const filteredDowntime = filterActiveServiceDowntime(downtimeData, activeServiceSet);
+      setDowntime(filteredDowntime);
       
       // Calculate site uptime based on total service hours
-      const serviceCount = memberData?.services?.length || 0;
-      const siteUptime = calculateSiteUptime(downtimeData, dateRange.start, dateRange.end, serviceCount);
+      const serviceCount = sanitizedMember?.services?.length || 0;
+      const siteUptime = calculateSiteUptime(filteredDowntime, dateRange.start, dateRange.end, serviceCount);
       
       // Update stats with calculated uptime
       const updatedStats = {
@@ -132,7 +143,7 @@ const MemberDetail = () => {
       setBilling(billingRes.data);
       
       // Calculate monthly uptime for the past 12 months
-      calculateMonthlyUptime(memberName);
+      calculateMonthlyUptime(memberName, activeServiceSet);
       
       setLoading(false);
     } catch (error) {
@@ -142,10 +153,14 @@ const MemberDetail = () => {
     }
   };
 
-  const calculateMonthlyUptime = async (memberName) => {
+  const calculateMonthlyUptime = async (memberName, activeServiceSet = null) => {
     const months = [];
     const today = new Date();
     const currentTime = new Date();
+    const activeSet =
+      activeServiceSet && activeServiceSet.size >= 0
+        ? activeServiceSet
+        : buildActiveServiceSet(member?.services || []);
     
     for (let i = 11; i >= 0; i--) {
       const monthStart = new Date(today.getFullYear(), today.getMonth() - i, 1);
@@ -164,10 +179,11 @@ const MemberDetail = () => {
         });
         
         const allDowntime = Array.isArray(downtimeRes.data) ? downtimeRes.data : [];
+        const activeDowntime = filterActiveServiceDowntime(allDowntime, activeSet);
         
         // Calculate site uptime for the month based on service hours
-        const serviceCount = member?.services?.length || 0;
-        const uptime = calculateSiteUptime(allDowntime, monthStart, monthEnd, serviceCount);
+        const serviceCount = activeSet?.size || member?.services?.length || 0;
+        const uptime = calculateSiteUptime(activeDowntime, monthStart, monthEnd, serviceCount);
         
         // Calculate total downtime hours (keeping this for display)
         const totalHours = (monthEnd - monthStart) / (1000 * 60 * 60);
@@ -353,23 +369,6 @@ const MemberDetail = () => {
     });
 
     return grouped;
-  };
-
-  // Convert domain name to service name
-  const domainToServiceName = (domainName) => {
-    if (!domainName) return null;
-    
-    // Remove common suffixes
-    let serviceName = domainName
-      .replace('.ibp.network', '')
-      .replace('.dotters.network', '');
-    
-    // Convert to title case with hyphens
-    serviceName = serviceName.split('-').map(part => 
-      part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-    ).join('-');
-    
-    return serviceName;
   };
 
   const getServiceFromEvent = (event) => {

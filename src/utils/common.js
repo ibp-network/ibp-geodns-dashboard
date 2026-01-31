@@ -11,6 +11,17 @@ export const getStatusClass = (health) => {
   return 'offline';
 };
 
+// Normalize a domain or endpoint by stripping protocol, ports, and paths
+export const normalizeDomain = (value) => {
+  if (!value) return '';
+
+  return value
+    .toLowerCase()
+    .replace(/^(https?|wss?):\/\//, '')
+    .replace(/:\d+.*$/, '')
+    .replace(/\/.*$/, '');
+};
+
 export const domainToServiceName = (domainName) => {
   if (!domainName) return null;
   
@@ -135,4 +146,48 @@ export const getStatusIcon = (status) => {
 export const formatMonth = (year, month) => {
   const date = new Date(year, parseInt(month) - 1);
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+};
+
+// Build a set of active service names (lower-cased) from service definitions
+export const buildActiveServiceSet = (services = []) => {
+  const list = Array.isArray(services) ? services : [];
+  return new Set(
+    list
+      .filter((service) => {
+        if (!service) return false;
+        if (typeof service === 'string') return true;
+        // When service objects are provided, treat active === false as inactive
+        return service.active !== false;
+      })
+      .map((service) => (typeof service === 'string' ? service : service.name))
+      .filter(Boolean)
+      .map((name) => name.toLowerCase())
+  );
+};
+
+// Determine which service a downtime event belongs to
+const getEventServiceName = (event) => {
+  if (!event) return '';
+  const normalized = normalizeDomain(event.domain_name || event.endpoint);
+  const byDomain = domainToServiceName(normalized);
+  if (byDomain) return byDomain;
+  return domainToServiceName(event.domain_name || event.endpoint || '') || '';
+};
+
+// Filter downtime events to those affecting active services (site events always included)
+export const filterActiveServiceDowntime = (events = [], activeServices = []) => {
+  const activeSet =
+    activeServices instanceof Set ? activeServices : buildActiveServiceSet(activeServices);
+
+  // If we don't know which services are active, keep events as-is
+  if (!activeSet || activeSet.size === 0) {
+    return Array.isArray(events) ? events : [];
+  }
+
+  const list = Array.isArray(events) ? events : [];
+  return list.filter((event) => {
+    if (event?.check_type === 'site') return true;
+    const serviceName = getEventServiceName(event);
+    return serviceName && activeSet.has(serviceName.toLowerCase());
+  });
 };

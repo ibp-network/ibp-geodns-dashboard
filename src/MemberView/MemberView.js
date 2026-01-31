@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ApiHelper from '../components/ApiHelper/ApiHelper';
 import Loading from '../components/Loading/Loading';
 import MemberLogo from '../components/MemberLogo/MemberLogo';
-import { getDownServices, getMemberHealth } from '../utils/common';
+import { buildActiveServiceSet, filterActiveServiceDowntime, getDownServices, getMemberHealth } from '../utils/common';
 import { getMemberStatus } from '../utils/memberUtils';
 import './MemberView.css';
 
@@ -21,12 +21,29 @@ const MemberView = () => {
 
   const loadData = async () => {
     try {
-      const [membersRes, downtimeRes] = await Promise.all([
+      const [membersRes, downtimeRes, servicesRes] = await Promise.all([
         ApiHelper.fetchMembers(),
-        ApiHelper.fetchCurrentDowntime()
+        ApiHelper.fetchCurrentDowntime(),
+        ApiHelper.fetchServices()
       ]);
-      setMembers(Array.isArray(membersRes.data) ? membersRes.data : []);
-      setDowntime(Array.isArray(downtimeRes.data) ? downtimeRes.data : []);
+
+      const servicesData = Array.isArray(servicesRes.data) ? servicesRes.data : [];
+      const activeServiceSet = buildActiveServiceSet(servicesData);
+
+      const memberData = Array.isArray(membersRes.data) ? membersRes.data : [];
+      const activeMembers = memberData.map((member) => {
+        const activeServices = (member.services || []).filter((service) =>
+          activeServiceSet.size === 0 ? true : activeServiceSet.has(service.toLowerCase())
+        );
+
+        return { ...member, services: activeServices };
+      });
+
+      const downtimeEvents = Array.isArray(downtimeRes.data) ? downtimeRes.data : [];
+      const filteredDowntime = filterActiveServiceDowntime(downtimeEvents, activeServiceSet);
+
+      setMembers(activeMembers);
+      setDowntime(filteredDowntime);
       setLoading(false);
     } catch (error) {
       console.error('Error loading data:', error);

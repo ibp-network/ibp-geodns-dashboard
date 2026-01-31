@@ -191,7 +191,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); /* Reduced from 300px to 255px (15% reduction) */
   gap: 12px;
-  max-height: 400px;
+  min-height: 220px; /* Keep a consistent visual height across tabs */
+  max-height: 220px; /* Match the no-services state height */
   overflow-y: auto;
   background: var(--bg-secondary);
   position: relative;
@@ -199,13 +200,8 @@
 
 /* Limited height class for grids with more than 10 items */
 .services-grid-inline.limited-height {
-  /* Calculate height based on card height (52px) + gap (12px) */
-  /* 2.5 rows = 2 full rows + half row */
-  /* Full row height = 52px, gap = 12px */
-  /* 2 rows = 52 + 12 + 52 = 116px */
-  /* Half row = 26px */
-  /* Total = 116 + 26 + 12 (gap) = 154px */
-  max-height: 154px;
+  max-height: 220px; /* Keep the same height as the default grid */
+  min-height: 220px;
   overflow-y: auto;
   padding-bottom: 8px; /* Reduced padding for scroll */
 }
@@ -294,6 +290,11 @@
   grid-column: 1 / -1;
   text-align: center;
   padding: 60px 20px;
+  min-height: 220px; /* Align with services grid height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
   color: var(--text-secondary);
 }
 
@@ -831,11 +832,13 @@
   
   .services-grid-inline {
     grid-template-columns: 1fr;
-    max-height: 300px;
+    max-height: 220px; /* Keep consistent height on mobile */
+    min-height: 220px;
   }
   
   .services-grid-inline.limited-height {
-    max-height: 300px; /* Keep mobile height consistent */
+    max-height: 220px; /* Keep mobile height consistent */
+    min-height: 220px;
   }
   
   .members-grid {

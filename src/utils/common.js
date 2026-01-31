@@ -150,7 +150,8 @@ export const formatMonth = (year, month) => {
 
 // Build a set of active service names (lower-cased) from service definitions
 export const buildActiveServiceSet = (services = []) => {
-  const list = Array.isArray(services) ? services : [];
+  // Services endpoint may return an array or an object with .services
+  const list = Array.isArray(services) ? services : Array.isArray(services?.services) ? services.services : [];
   return new Set(
     list
       .filter((service) => {

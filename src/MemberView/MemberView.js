@@ -27,7 +27,11 @@ const MemberView = () => {
         ApiHelper.fetchServices()
       ]);
 
-      const servicesData = Array.isArray(servicesRes.data) ? servicesRes.data : [];
+      const servicesData = Array.isArray(servicesRes.data?.services)
+        ? servicesRes.data.services
+        : Array.isArray(servicesRes.data)
+          ? servicesRes.data
+          : [];
       const activeServiceSet = buildActiveServiceSet(servicesData);
 
       const memberData = Array.isArray(membersRes.data) ? membersRes.data : [];

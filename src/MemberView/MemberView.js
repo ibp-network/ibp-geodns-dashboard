@@ -62,7 +62,12 @@ const MemberView = () => {
     return matchesSearch && matchesLevel;
   });
 
-  const groupedMembers = filteredMembers.reduce((acc, member) => {
+  // Sort members alphabetically within each level for stable display
+  const sortedMembers = [...filteredMembers].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+  );
+
+  const groupedMembers = sortedMembers.reduce((acc, member) => {
     const level = member.level || 1;
     if (!acc[level]) acc[level] = [];
     acc[level].push(member);

@@ -104,27 +104,12 @@
   background: rgba(255, 255, 255, 0.02);
 }
 
-/* Search Container - with highlight state */
+/* Search Container */
 .search-container {
   flex: 1;
   position: relative;
   max-width: 400px;
   transition: all 0.3s ease;
-}
-
-.search-container.highlighted {
-  max-width: 500px;
-}
-
-.search-container.highlighted .service-search-input {
-  border-color: var(--warning);
-  background: rgba(245, 158, 11, 0.05);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
-}
-
-.search-container.highlighted .search-icon {
-  color: var(--warning);
-  opacity: 1;
 }
 
 .search-hint {
@@ -819,10 +804,6 @@
   }
   
   .search-container {
-    max-width: 100%;
-  }
-  
-  .search-container.highlighted {
     max-width: 100%;
   }
   

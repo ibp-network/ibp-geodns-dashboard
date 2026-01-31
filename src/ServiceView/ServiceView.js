@@ -248,9 +248,6 @@ console.log('Connected to:', chain.toString());`
               onChange={(e) => setSearchTerm(e.target.value)}
               className="service-search-input"
             />
-            {shouldHighlightSearch && (
-              <span className="search-hint">Too many results - use search to filter</span>
-            )}
           </div>
 
           {/* Relay Filter (only for system/community tabs) */}

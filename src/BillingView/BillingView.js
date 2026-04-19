@@ -176,7 +176,12 @@ const BillingView = () => {
   const loadInitialData = async () => {
     try {
       const membersRes = await ApiHelper.fetchMembers();
-      setMembers(membersRes.data || []);
+      const membersData = Array.isArray(membersRes.data?.members)
+        ? membersRes.data.members
+        : Array.isArray(membersRes.data)
+          ? membersRes.data
+          : [];
+      setMembers(membersData);
       
       const pdfsRes = await ApiHelper.fetchBillingPDFs();
       const overviews = [];

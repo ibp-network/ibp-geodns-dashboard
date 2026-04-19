@@ -17,12 +17,13 @@ const DataTable = ({ data, type, aggregateView }) => {
   };
 
   // Aggregate data when aggregateView is true
-  const processedData = aggregateView ? aggregateData() : data;
+  const safeData = Array.isArray(data) ? data : [];
+  const processedData = aggregateView ? aggregateData() : safeData;
 
   function aggregateData() {
     const aggregated = {};
 
-    data.forEach(item => {
+    safeData.forEach(item => {
       let key;
       switch (type) {
         case 'country':

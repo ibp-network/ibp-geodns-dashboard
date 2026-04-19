@@ -28,7 +28,12 @@ const ServiceView = () => {
       ]);
       
       setHierarchy(hierarchyRes.data || { relay_chains: [], orphans: [] });
-      setMembers(membersRes.data || []);
+      const membersData = Array.isArray(membersRes.data?.members)
+        ? membersRes.data.members
+        : Array.isArray(membersRes.data)
+          ? membersRes.data
+          : [];
+      setMembers(membersData);
       
       setLoading(false);
     } catch (error) {

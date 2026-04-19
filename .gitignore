@@ -1,42 +1,31 @@
-# Ignore common binaries
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-*.ps1
-*.txt
+# Dependencies
+node_modules/
 
-# Ignore go working files
-go.work
-go.work.sum
-go.sum
+# Production builds
+build/
+dist/
 
-# Ignore config directory but keep structure
-/config/*
+# Generated static assets
+public/static/imgs/
 
-# Ignore tmp directory but keep structure
-/tmp/*
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Ignore bin directory but keep structure
-/bin/*
+# Local environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Ignore files in maxmind directory but keep structure
-/tmp/maxmind/*
-/.github
-/.github/*
-/.github/workflows
-/.github/workflows/*
-/bin
-/bin/*
-/tmp
-/tmp/*
-/src/IBDash/node_modules
-/src/IBDash/node_modules/*
-/src/IBDash/package-lock.json
-# Ignore generated public assets but keep base HTML
-/public/static/imgs/
-/public/static/imgs/*
-
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

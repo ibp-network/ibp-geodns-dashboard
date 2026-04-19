@@ -48,8 +48,6 @@ const MemberDetail = () => {
       
       if (start >= end) return; // Skip if outside date range
       
-      const downtimeHours = (end - start) / (1000 * 60 * 60);
-      
       if (event.check_type === 'site') {
         // Site downtime affects ALL services
         for (let i = 0; i < serviceCount; i++) {
@@ -120,7 +118,12 @@ const MemberDetail = () => {
           : [];
       const activeServiceSet = buildActiveServiceSet(servicesData);
 
-      const memberData = membersRes.data.find(m => m.name === memberName);
+      const membersData = Array.isArray(membersRes.data?.members)
+        ? membersRes.data.members
+        : Array.isArray(membersRes.data)
+          ? membersRes.data
+          : [];
+      const memberData = membersData.find(m => m.name === memberName);
       const memberActiveServices = (memberData?.services || []).filter(service =>
         activeServiceSet.size === 0 ? true : activeServiceSet.has(service.toLowerCase())
       );
@@ -160,7 +163,6 @@ const MemberDetail = () => {
   const calculateMonthlyUptime = async (memberName, activeServiceSet = null) => {
     const months = [];
     const today = new Date();
-    const currentTime = new Date();
     const activeSet =
       activeServiceSet && activeServiceSet.size >= 0
         ? activeServiceSet

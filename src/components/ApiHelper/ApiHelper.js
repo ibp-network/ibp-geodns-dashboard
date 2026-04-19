@@ -24,7 +24,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized
+      localStorage.removeItem('ibp_auth_token');
     }
     return Promise.reject(error);
   }

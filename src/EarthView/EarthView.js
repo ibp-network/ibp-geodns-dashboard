@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Globe from 'globe.gl';
 import ApiHelper from '../components/ApiHelper/ApiHelper';
 import Loading from '../components/Loading/Loading';
-import { domainToServiceName, getDownServices, getMemberHealth, getStatusClass } from '../utils/common';
+import { getDownServices, getMemberHealth, getStatusClass } from '../utils/common';
 import './EarthView.css';
 
 const EarthView = () => {
@@ -38,7 +38,12 @@ const EarthView = () => {
   const loadMembersData = async () => {
     try {
       const response = await ApiHelper.fetchMembers();
-      setMembers(response.data || []);
+      const membersData = Array.isArray(response.data?.members)
+        ? response.data.members
+        : Array.isArray(response.data)
+          ? response.data
+          : [];
+      setMembers(membersData);
     } catch (error) {
       console.error('Error loading members:', error);
       setMembers([]);
@@ -70,7 +75,7 @@ const EarthView = () => {
     return isServiceDown(memberName, serviceName) ? 'offline' : 'online';
   };
 
-  const getTotalDowntimeHours = (memberName) => {
+  const getTotalDowntimeEvents = (memberName) => {
     const outages = getMemberOutages(memberName);
     return outages.length;
   };
@@ -91,8 +96,10 @@ useEffect(() => {
    }
 
    const container = containerRef.current;
-   container.addEventListener('dragstart', (e) => e.preventDefault());
-   container.addEventListener('selectstart', (e) => e.preventDefault());
+   const preventDragStart = (e) => e.preventDefault();
+   const preventSelectStart = (e) => e.preventDefault();
+   container.addEventListener('dragstart', preventDragStart);
+   container.addEventListener('selectstart', preventSelectStart);
 
    const globe = Globe()(globeRef.current)
      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
@@ -209,8 +216,8 @@ useEffect(() => {
    globeInstance.current = globe;
 
    return () => {
-     container.removeEventListener('dragstart', (e) => e.preventDefault());
-     container.removeEventListener('selectstart', (e) => e.preventDefault());
+     container.removeEventListener('dragstart', preventDragStart);
+     container.removeEventListener('selectstart', preventSelectStart);
      window.removeEventListener('resize', handleResize);
      if (globeInstance.current && globeInstance.current._destructor) {
        globeInstance.current._destructor();
@@ -305,8 +312,8 @@ useEffect(() => {
                      <span className="info-value">{displayMember.latitude?.toFixed(2)}, {displayMember.longitude?.toFixed(2)}</span>
                    </div>
                    <div className="info-row">
-                     <span className="info-label">Downtime:</span>
-                     <span className="info-value">{getTotalDowntimeHours(displayMember.name)}h</span>
+                    <span className="info-label">Events:</span>
+                    <span className="info-value">{getTotalDowntimeEvents(displayMember.name)}</span>
                    </div>
                    <div className="info-row full-width">
                      <span className="info-label">Website:</span>

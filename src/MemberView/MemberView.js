@@ -34,7 +34,11 @@ const MemberView = () => {
           : [];
       const activeServiceSet = buildActiveServiceSet(servicesData);
 
-      const memberData = Array.isArray(membersRes.data) ? membersRes.data : [];
+      const memberData = Array.isArray(membersRes.data?.members)
+        ? membersRes.data.members
+        : Array.isArray(membersRes.data)
+          ? membersRes.data
+          : [];
       const activeMembers = memberData.map((member) => {
         const activeServices = (member.services || []).filter((service) =>
           activeServiceSet.size === 0 ? true : activeServiceSet.has(service.toLowerCase())
@@ -56,9 +60,10 @@ const MemberView = () => {
   };
 
   const filteredMembers = members.filter(member => {
-    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         member.region.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLevel = filterLevel === 'all' || member.level === parseInt(filterLevel);
+    const normalizedSearch = searchTerm.toLowerCase();
+    const matchesSearch = (member.name || '').toLowerCase().includes(normalizedSearch) ||
+                         (member.region || '').toLowerCase().includes(normalizedSearch);
+    const matchesLevel = filterLevel === 'all' || Number(member.level) === Number(filterLevel);
     return matchesSearch && matchesLevel;
   });
 
@@ -87,7 +92,7 @@ const MemberView = () => {
       <div
         key={member.name}
         className={`member-card ${status}`}
-        onClick={() => navigate(`/members/${member.name}`)}
+        onClick={() => navigate(`/members/${encodeURIComponent(member.name)}`)}
       >
         <div className="member-status-strip"></div>
         

@@ -46,16 +46,19 @@ const DataView = () => {
   const serviceRef = useRef(null);
   const memberRef = useRef(null);
   const networkRef = useRef(null);
+  const hasCompletedInitialLoad = useRef(false);
 
   useEffect(() => {
     loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!initialLoading) {
+    if (hasCompletedInitialLoad.current) {
       loadAllData();
     }
-  }, [dateRange, activeTab, selectedCountries, selectedServices, selectedMembers, selectedNetworks, initialLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, activeTab, selectedCountries, selectedServices, selectedMembers, selectedNetworks]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -94,6 +97,7 @@ const DataView = () => {
       setDataReady(true);
     } finally {
       // Wait a bit for data ready state to propagate
+      hasCompletedInitialLoad.current = true;
       setInitialLoading(false)
     }
   };
@@ -134,7 +138,7 @@ const DataView = () => {
         end: dateRange.end.toISOString().split('T')[0]
       };
 
-      const [countryRes, serviceRes, memberRes, asnRes, servicesFullRes] = await Promise.all([
+      const [countryRes, , memberRes, asnRes, servicesFullRes] = await Promise.all([
         ApiHelper.fetchRequestsByCountry(params),
         ApiHelper.fetchRequestsByService(params),
         ApiHelper.fetchRequestsByMember(params),
@@ -354,6 +358,8 @@ const DataView = () => {
       case 'network':
         setSelectedNetworks(prev => prev.filter(n => n.asn !== value.asn));
         break;
+      default:
+        break;
     }
   };
 
@@ -382,6 +388,8 @@ const DataView = () => {
           setSelectedNetworks(prev => [...prev, suggestion]);
         }
         setFilters(prev => ({ ...prev, network: '' }));
+        break;
+      default:
         break;
     }
     setShowSuggestions(prev => ({ ...prev, [type]: false }));
@@ -417,6 +425,8 @@ const DataView = () => {
           if (network && !selectedNetworks.find(n => n.asn === network.asn)) {
             setSelectedNetworks(prev => [...prev, network]);
           }
+          break;
+        default:
           break;
       }
       setFilters(prev => ({ ...prev, [type]: '' }));

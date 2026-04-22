@@ -1,7 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { format } from 'date-fns';
 import './Sidebar.css';
+
+const utcDateFormatter = new Intl.DateTimeFormat(undefined, {
+  timeZone: 'UTC',
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric'
+});
+
+const utcTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  timeZone: 'UTC',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false
+});
 
 const Sidebar = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -109,8 +124,8 @@ const Sidebar = () => {
 
         <div className="sidebar-footer">
           <div className="time-display">
-            <div className="date">{format(currentTime, 'EEEE, MMMM d, yyyy')}</div>
-            <div className="time">{format(currentTime, 'HH:mm:ss')} UTC</div>
+            <div className="date">{utcDateFormatter.format(currentTime)}</div>
+            <div className="time">{utcTimeFormatter.format(currentTime)} UTC</div>
           </div>
           <div className="version">
             <small>IBP GeoDNS v0.4.0</small>

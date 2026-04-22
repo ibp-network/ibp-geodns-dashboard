@@ -15,6 +15,7 @@ const MemberDetail = () => {
   const [downtime, setDowntime] = useState([]);
   const [monthlyUptime, setMonthlyUptime] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().setDate(new Date().getDate() - 30)),
@@ -22,8 +23,17 @@ const MemberDetail = () => {
   });
 
   useEffect(() => {
-    loadMemberData();
+    const controller = new AbortController();
+    loadMemberData(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberName, dateRange]);
+
+  const isCanceledError = (error) =>
+    error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED';
 
   const calculateSiteUptime = (downtimeEvents, startDate, endDate, serviceCount = 0) => {
     if (serviceCount === 0) return 100; // No services means 100% uptime
@@ -96,20 +106,41 @@ const MemberDetail = () => {
     return Math.max(0, Math.min(100, uptimePercentage));
   };
 
-  const loadMemberData = async () => {
+  const loadMemberData = async (signal) => {
+    setLoading(true);
+    setLoadError('');
+    setMember(null);
+    setStats(null);
+    setBilling(null);
+    setDowntime([]);
+    setMonthlyUptime([]);
+
     try {
       const params = {
         start: dateRange.start.toISOString().split('T')[0],
         end: dateRange.end.toISOString().split('T')[0]
       };
+      const requestOptions = { signal };
+      const now = new Date();
+      const billingMonth = now.getMonth() + 1;
+      const billingYear = now.getFullYear();
 
       const [membersRes, statsRes, billingRes, downtimeRes, servicesRes] = await Promise.all([
-        ApiHelper.fetchMembers(),
-        ApiHelper.fetchMemberStats(memberName, params),
-        ApiHelper.fetchBillingBreakdown({ member: memberName, include_downtime: true }),
-        ApiHelper.fetchDowntimeEvents({ member: memberName, ...params }),
-        ApiHelper.fetchServices()
+        ApiHelper.fetchMembers(requestOptions),
+        ApiHelper.fetchMemberStats(memberName, params, requestOptions),
+        ApiHelper.fetchBillingBreakdown({
+          member: memberName,
+          month: billingMonth,
+          year: billingYear,
+          include_downtime: true
+        }, requestOptions),
+        ApiHelper.fetchDowntimeEvents({ member: memberName, ...params }, requestOptions),
+        ApiHelper.fetchServices(requestOptions)
       ]);
+
+      if (signal?.aborted) {
+        return;
+      }
 
       const servicesData = Array.isArray(servicesRes.data?.services)
         ? servicesRes.data.services
@@ -150,72 +181,111 @@ const MemberDetail = () => {
       setBilling(billingRes.data);
       
       // Calculate monthly uptime for the past 12 months
-      calculateMonthlyUptime(memberName, activeServiceSet);
+      calculateMonthlyUptime(memberName, activeServiceSet, sanitizedMember?.services?.length || 0, signal);
       
       setLoading(false);
     } catch (error) {
+      if (isCanceledError(error)) {
+        return;
+      }
       console.error('Error loading member data:', error);
+      setMember(null);
+      setStats(null);
+      setBilling(null);
       setDowntime([]);
+      setMonthlyUptime([]);
+      setLoadError('Unable to load member data right now. Please try again.');
       setLoading(false);
     }
   };
 
-  const calculateMonthlyUptime = async (memberName, activeServiceSet = null) => {
-    const months = [];
+  const calculateMonthlyUptime = async (selectedMemberName, activeServiceSet = null, fallbackServiceCount = 0, signal) => {
     const today = new Date();
     const activeSet =
       activeServiceSet && activeServiceSet.size >= 0
         ? activeServiceSet
-        : buildActiveServiceSet(member?.services || []);
-    
+        : buildActiveServiceSet([]);
+    const serviceCount = activeSet?.size || fallbackServiceCount || 0;
+
+    const monthRequests = [];
     for (let i = 11; i >= 0; i--) {
       const monthStart = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const monthEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0, 23, 59, 59, 999);
-      
-      try {
+      monthRequests.push((async () => {
         const params = {
           start: monthStart.toISOString().split('T')[0],
           end: monthEnd.toISOString().split('T')[0]
         };
-        
-        // Get all downtime for the month
-        const downtimeRes = await ApiHelper.fetchDowntimeEvents({ 
-          member: memberName, 
-          ...params 
-        });
-        
-        const allDowntime = Array.isArray(downtimeRes.data) ? downtimeRes.data : [];
-        const activeDowntime = filterActiveServiceDowntime(allDowntime, activeSet);
-        
-        // Calculate site uptime for the month based on service hours
-        const serviceCount = activeSet?.size || member?.services?.length || 0;
-        const uptime = calculateSiteUptime(activeDowntime, monthStart, monthEnd, serviceCount);
-        
-        // Calculate total downtime hours (keeping this for display)
-        const totalHours = (monthEnd - monthStart) / (1000 * 60 * 60);
-        const totalServiceHours = totalHours * serviceCount;
-        const downtimeServiceHours = totalServiceHours * (1 - uptime / 100);
-        const avgDowntimeHours = serviceCount > 0 ? downtimeServiceHours / serviceCount : 0;
-        
-        months.push({
-          month: monthStart.toLocaleDateString('en-US', { month: 'short' }),
-          year: monthStart.getFullYear(),
-          uptime: uptime,
-          downtime: avgDowntimeHours
-        });
-      } catch (error) {
+
+        try {
+          const downtimeRes = await ApiHelper.fetchDowntimeEvents({
+            member: selectedMemberName,
+            ...params
+          }, { signal });
+
+          const allDowntime = Array.isArray(downtimeRes.data) ? downtimeRes.data : [];
+          const activeDowntime = filterActiveServiceDowntime(allDowntime, activeSet);
+          const uptime = calculateSiteUptime(activeDowntime, monthStart, monthEnd, serviceCount);
+          const totalHours = (monthEnd - monthStart) / (1000 * 60 * 60);
+          const totalServiceHours = totalHours * serviceCount;
+          const downtimeServiceHours = totalServiceHours * (1 - uptime / 100);
+          const avgDowntimeHours = serviceCount > 0 ? downtimeServiceHours / serviceCount : 0;
+
+          return {
+            month: monthStart.toLocaleDateString('en-US', { month: 'short' }),
+            year: monthStart.getFullYear(),
+            uptime: uptime,
+            downtime: avgDowntimeHours
+          };
+        } catch (error) {
+          if (isCanceledError(error)) {
+            throw error;
+          }
+          console.error('Error calculating monthly uptime:', error);
+          return {
+            month: monthStart.toLocaleDateString('en-US', { month: 'short' }),
+            year: monthStart.getFullYear(),
+            uptime: 100,
+            downtime: 0
+          };
+        }
+      })());
+    }
+
+    try {
+      const months = await Promise.all(monthRequests);
+      if (!signal?.aborted) {
+        setMonthlyUptime(months);
+      }
+    } catch (error) {
+      if (!isCanceledError(error)) {
         console.error('Error calculating monthly uptime:', error);
-        months.push({
-          month: monthStart.toLocaleDateString('en-US', { month: 'short' }),
-          year: monthStart.getFullYear(),
-          uptime: 100,
-          downtime: 0
-        });
+      }
+      if (!signal?.aborted) {
+        setMonthlyUptime([]);
       }
     }
-    
-    setMonthlyUptime(months);
   };
+
+  if (loading) {
+    return <Loading pageLevel={true} dataReady={false} />;
+  }
+
+  if (!member) {
+    return (
+      <div className="member-not-found">
+        <h2>{loadError ? 'Unable to load member' : 'Member not found'}</h2>
+        {loadError && (
+          <div className="member-error-banner" role="alert">
+            {loadError}
+          </div>
+        )}
+        <button onClick={() => navigate('/members')} className="btn btn-primary">
+          Back to Members
+        </button>
+      </div>
+    );
+  }
 
   const getServiceStatus = (serviceName) => {
     // Check for service-specific downtime
@@ -296,65 +366,6 @@ const MemberDetail = () => {
     return Math.max(0, Math.min(100, uptimePercentage));
   };
 
-  const calculateBillingWithActualUptime = (billingData) => {
-    if (!billingData || !billingData.members) return billingData;
-    
-    // Get the current month's date range for billing
-    const now = new Date();
-    const billingStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    const billingEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-    
-    const updatedBilling = {
-      ...billingData,
-      members: billingData.members.map(memberBilling => {
-        if (memberBilling.name !== memberName) return memberBilling;
-        
-        const updatedServices = memberBilling.services?.map(service => {
-          // Calculate actual uptime for this service based on downtime events
-          const actualUptime = getServiceUptime(service.name, { start: billingStartDate, end: billingEndDate });
-          
-          // Determine if service meets SLA (99.9%)
-          const meetsSlaNow = actualUptime >= 99.9;
-          
-          // Calculate credits based on actual uptime
-          let credits = 0;
-          if (actualUptime < 99.9 && actualUptime >= 99.0) {
-            credits = service.base_cost * 0.1; // 10% credit
-          } else if (actualUptime < 99.0 && actualUptime >= 95.0) {
-            credits = service.base_cost * 0.25; // 25% credit
-          } else if (actualUptime < 95.0) {
-            credits = service.base_cost * 0.5; // 50% credit
-          }
-          
-          const billedCost = service.base_cost - credits;
-          
-          return {
-            ...service,
-            uptime_percentage: actualUptime,
-            meets_sla: meetsSlaNow,
-            credits: credits,
-            billed_cost: billedCost
-          };
-        }) || [];
-        
-        // Recalculate totals
-        const totalBaseCost = updatedServices.reduce((sum, s) => sum + (s.base_cost || 0), 0);
-        const totalCredits = updatedServices.reduce((sum, s) => sum + (s.credits || 0), 0);
-        const totalBilled = totalBaseCost - totalCredits;
-        
-        return {
-          ...memberBilling,
-          services: updatedServices,
-          total_base_cost: totalBaseCost,
-          total_credits: totalCredits,
-          total_billed: totalBilled
-        };
-      })
-    };
-    
-    return updatedBilling;
-  };
-
   const groupDowntimeEvents = () => {
     const grouped = {
       site: [],
@@ -415,21 +426,6 @@ const MemberDetail = () => {
     return flags[countryCode] || '🌍';
   };
 
-  if (loading) {
-    return <Loading pageLevel={true} dataReady={false} />;
-  }
-
-  if (!member) {
-    return (
-      <div className="member-not-found">
-        <h2>Member not found</h2>
-        <button onClick={() => navigate('/members')} className="btn btn-primary">
-          Back to Members
-        </button>
-      </div>
-    );
-  }
-
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'billing', label: 'Billing', icon: '💰' },
@@ -438,9 +434,6 @@ const MemberDetail = () => {
   ];
 
   const groupedDowntime = groupDowntimeEvents();
-  
-  // Calculate billing with actual uptime including ongoing events
-  const actualBilling = calculateBillingWithActualUptime(billing);
 
   return (
     <div className="member-detail fade-in">
@@ -628,10 +621,10 @@ const MemberDetail = () => {
             </div>
           )}
 
-          {activeTab === 'billing' && actualBilling && (
+          {activeTab === 'billing' && billing && (
             <div className="billing-content">
               <h3>Current Month Billing</h3>
-              {actualBilling.members?.map(memberBilling => (
+              {billing.members?.map(memberBilling => (
                 <div key={memberBilling.name} className="billing-section">
                   <div className="billing-summary">
                     <div className="billing-item">
@@ -668,7 +661,7 @@ const MemberDetail = () => {
                               <td>{service.name}</td>
                               <td>${service.base_cost?.toFixed(2)}</td>
                               <td>
-                                <span className={service.uptime_percentage < 99.9 ? 'text-warning' : 'text-success'}>
+                                <span className={service.meets_sla ? 'text-success' : 'text-warning'}>
                                   {service.uptime_percentage?.toFixed(2)}%
                                 </span>
                               </td>

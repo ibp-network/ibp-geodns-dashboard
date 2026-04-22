@@ -1,12 +1,20 @@
 import React from 'react';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar, PieChart, Pie,
+  XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell
 } from 'recharts';
 import './Charts.css';
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1', '#f472b6', '#a78bfa', '#60a5fa', '#34d399'];
+
+const formatMetricValue = (value) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return '0';
+  }
+  return numericValue.toLocaleString();
+};
 
 const Charts = ({ data, type }) => {
   if (!data || data.length === 0) return null;
@@ -18,7 +26,7 @@ const Charts = ({ data, type }) => {
           {payload.map((entry, index) => (
             <div key={index} className="tooltip-item">
               <span className="tooltip-label">{entry.name}:</span>
-              <span className="tooltip-value">{entry.value.toLocaleString()}</span>
+              <span className="tooltip-value">{formatMetricValue(entry.value)}</span>
             </div>
           ))}
         </div>
@@ -36,13 +44,13 @@ const Charts = ({ data, type }) => {
             <>
               <div className="tooltip-item">
                 <span className="tooltip-label">Others Total:</span>
-                <span className="tooltip-value">{payload[0].value.toLocaleString()}</span>
+                <span className="tooltip-value">{formatMetricValue(payload[0].value)}</span>
               </div>
               <div className="tooltip-separator"></div>
               {othersData.map((item, index) => (
                 <div key={index} className="tooltip-item">
                   <span className="tooltip-label">{item.service}:</span>
-                  <span className="tooltip-value">{item.requests.toLocaleString()}</span>
+                  <span className="tooltip-value">{formatMetricValue(item.requests)}</span>
                 </div>
               ))}
             </>
@@ -50,7 +58,7 @@ const Charts = ({ data, type }) => {
             payload.map((entry, index) => (
               <div key={index} className="tooltip-item">
                 <span className="tooltip-label">{entry.name}:</span>
-                <span className="tooltip-value">{entry.value.toLocaleString()}</span>
+                <span className="tooltip-value">{formatMetricValue(entry.value)}</span>
               </div>
             ))
           )}

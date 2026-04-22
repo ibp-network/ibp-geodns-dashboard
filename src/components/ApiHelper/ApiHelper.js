@@ -30,37 +30,45 @@ api.interceptors.response.use(
   }
 );
 
+const withParams = (params = {}, options = {}) => ({
+  ...options,
+  params: {
+    ...params,
+    ...(options.params || {})
+  }
+});
+
 const ApiHelper = {
   // Request endpoints
-  fetchRequestsByCountry: (params) => api.get('/requests/country', { params }),
-  fetchRequestsByASN: (params) => api.get('/requests/asn', { params }),
-  fetchRequestsByService: (params) => api.get('/requests/service', { params }),
-  fetchRequestsByMember: (params) => api.get('/requests/member', { params }),
-  fetchRequestsSummary: (params) => api.get('/requests/summary', { params }),
+  fetchRequestsByCountry: (params, options = {}) => api.get('/requests/country', withParams(params, options)),
+  fetchRequestsByASN: (params, options = {}) => api.get('/requests/asn', withParams(params, options)),
+  fetchRequestsByService: (params, options = {}) => api.get('/requests/service', withParams(params, options)),
+  fetchRequestsByMember: (params, options = {}) => api.get('/requests/member', withParams(params, options)),
+  fetchRequestsSummary: (params, options = {}) => api.get('/requests/summary', withParams(params, options)),
   
   // Downtime endpoints
-  fetchDowntimeEvents: (params) => api.get('/downtime/events', { params }),
-  fetchCurrentDowntime: () => api.get('/downtime/current'),
-  fetchDowntimeSummary: (params) => api.get('/downtime/summary', { params }),
+  fetchDowntimeEvents: (params, options = {}) => api.get('/downtime/events', withParams(params, options)),
+  fetchCurrentDowntime: (options = {}) => api.get('/downtime/current', options),
+  fetchDowntimeSummary: (params, options = {}) => api.get('/downtime/summary', withParams(params, options)),
   
   // Member endpoints
-  fetchMembers: () => api.get('/members'),
-  fetchMemberStats: (memberName, params) => 
-    api.get('/members/stats', { params: { name: memberName, ...params } }),
+  fetchMembers: (options = {}) => api.get('/members', options),
+  fetchMemberStats: (memberName, params, options = {}) => 
+    api.get('/members/stats', withParams({ name: memberName, ...params }, options)),
   
   // Service endpoints
-  fetchServices: () => api.get('/services'),
-  fetchServicesHierarchy: () => api.get('/services?hierarchy=true'),
-  fetchServicesSummary: () => api.get('/services/summary'),
+  fetchServices: (options = {}) => api.get('/services', options),
+  fetchServicesHierarchy: (options = {}) => api.get('/services?hierarchy=true', options),
+  fetchServicesSummary: (options = {}) => api.get('/services/summary', options),
   
   // Billing endpoints
-  fetchBillingBreakdown: (params) => api.get('/billing/breakdown', { params }),
-  fetchBillingSummary: () => api.get('/billing/summary'),
+  fetchBillingBreakdown: (params, options = {}) => api.get('/billing/breakdown', withParams(params, options)),
+  fetchBillingSummary: (options = {}) => api.get('/billing/summary', options),
 
   // Billing PDF endpoints
-  fetchBillingPDFs: (params) => api.get('/billing/pdfs', { params }),
-  downloadBillingPDF: (params) => api.get('/billing/pdfs/download', { 
-    params,
+  fetchBillingPDFs: (params, options = {}) => api.get('/billing/pdfs', withParams(params, options)),
+  downloadBillingPDF: (params, options = {}) => api.get('/billing/pdfs/download', {
+    ...withParams(params, options),
     responseType: 'arraybuffer'
   }),
 };

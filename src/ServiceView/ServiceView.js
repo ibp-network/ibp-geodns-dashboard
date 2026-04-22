@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ApiHelper from '../components/ApiHelper/ApiHelper';
 import Loading from '../components/Loading/Loading';
@@ -11,13 +11,22 @@ const ServiceView = () => {
   const [selectedService, setSelectedService] = useState(null);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [failedServiceLogos, setFailedServiceLogos] = useState(() => new Set());
+  const [failedMemberLogos, setFailedMemberLogos] = useState(() => new Set());
   const [activeTab, setActiveTab] = useState('relay'); // 'relay', 'system', or 'community'
   const [selectedRelayFilter, setSelectedRelayFilter] = useState('all'); // For filtering system/community by relay
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedEndpoint, setCopiedEndpoint] = useState(null);
+  const copyResetTimeoutRef = useRef(null);
 
   useEffect(() => {
     loadInitialData();
+  }, []);
+
+  useEffect(() => () => {
+    if (copyResetTimeoutRef.current) {
+      clearTimeout(copyResetTimeoutRef.current);
+    }
   }, []);
 
   const loadInitialData = async () => {
@@ -42,10 +51,41 @@ const ServiceView = () => {
     }
   };
 
+  const markServiceLogoFailed = (serviceName) => {
+    setFailedServiceLogos((prev) => {
+      if (prev.has(serviceName)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(serviceName);
+      return next;
+    });
+  };
+
+  const markMemberLogoFailed = (memberName) => {
+    setFailedMemberLogos((prev) => {
+      if (prev.has(memberName)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(memberName);
+      return next;
+    });
+  };
+
+  const getInitials = (value = '') => (value.substring(0, 2) || '?').toUpperCase();
+
   const copyToClipboard = (text, endpoint) => {
+    if (copyResetTimeoutRef.current) {
+      clearTimeout(copyResetTimeoutRef.current);
+    }
+
     navigator.clipboard.writeText(text);
     setCopiedEndpoint(endpoint);
-    setTimeout(() => setCopiedEndpoint(null), 2000);
+    copyResetTimeoutRef.current = setTimeout(() => {
+      setCopiedEndpoint(null);
+      copyResetTimeoutRef.current = null;
+    }, 2000);
   };
 
   const getServiceMembers = (serviceName) => {
@@ -142,6 +182,7 @@ console.log('Connected to:', chain.toString());`
 
   const renderServiceCard = (service) => {
     const isSelected = selectedService?.name === service.name;
+    const showServiceLogo = Boolean(service.logo_url) && !failedServiceLogos.has(service.name);
     
     return (
       <div
@@ -150,22 +191,19 @@ console.log('Connected to:', chain.toString());`
         onClick={() => setSelectedService(service)}
       >
         <div className="service-card-header">
-          {service.logo_url ? (
+          {showServiceLogo ? (
             <img 
               src={service.logo_url} 
               alt={service.display_name}
               className="service-card-logo"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
+              onError={() => markServiceLogoFailed(service.name)}
             />
           ) : null}
           <div 
             className="service-card-logo-placeholder"
-            style={{ display: service.logo_url ? 'none' : 'flex' }}
+            style={{ display: showServiceLogo ? 'none' : 'flex' }}
           >
-            {service.display_name?.substring(0, 2).toUpperCase()}
+            {getInitials(service.display_name || service.name)}
           </div>
           <div className="service-card-info">
             <div className="service-card-name">{service.display_name || service.name}</div>
@@ -194,6 +232,7 @@ console.log('Connected to:', chain.toString());`
   const shouldHighlightSearch = filteredServices.length > 8;
   // Determine if we need to apply height limitation
   const shouldLimitHeight = filteredServices.length > 10;
+  const showSelectedServiceLogo = Boolean(selectedService?.logo_url) && !failedServiceLogos.has(selectedService?.name);
 
   return (
     <div className="service-view fade-in">
@@ -289,22 +328,19 @@ console.log('Connected to:', chain.toString());`
       {selectedService && (
         <div className="service-detail-section">
           <div className="detail-header">
-            {selectedService.logo_url ? (
+            {showSelectedServiceLogo ? (
               <img 
                 src={selectedService.logo_url} 
                 alt={selectedService.display_name}
                 className="detail-header-logo"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-                }}
+                onError={() => markServiceLogoFailed(selectedService.name)}
               />
             ) : null}
             <div 
               className="detail-header-logo-placeholder"
-              style={{ display: selectedService.logo_url ? 'none' : 'flex' }}
+              style={{ display: showSelectedServiceLogo ? 'none' : 'flex' }}
             >
-              {selectedService.display_name?.substring(0, 2).toUpperCase()}
+              {getInitials(selectedService.display_name || selectedService.name)}
             </div>
             <div className="detail-header-info">
               <h2>{selectedService.display_name || selectedService.name}</h2>
@@ -478,25 +514,24 @@ console.log('Connected to:', chain.toString());`
                 Members Providing This Service ({getServiceMembers(selectedService.name).length})
               </h3>
               <div className="members-grid">
-                {getServiceMembers(selectedService.name).map(member => (
+                {getServiceMembers(selectedService.name).map(member => {
+                  const showMemberLogo = Boolean(member.logo) && !failedMemberLogos.has(member.name);
+                  return (
                   <div 
                     key={member.name} 
                     className="service-member-card"
-                    onClick={() => navigate(`/members/${member.name}`)}
+                    onClick={() => navigate(`/members/${encodeURIComponent(member.name)}`)}
                   >
                     <div className="service-member-logo">
-                      {member.logo ? (
+                      {showMemberLogo ? (
                         <img 
                           src={member.logo} 
                           alt={member.name}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.parentElement.innerHTML = `<div class="service-member-placeholder">${member.name.substring(0, 2).toUpperCase()}</div>`;
-                          }}
+                          onError={() => markMemberLogoFailed(member.name)}
                         />
                       ) : (
                         <div className="service-member-placeholder">
-                          {member.name.substring(0, 2).toUpperCase()}
+                          {getInitials(member.name)}
                         </div>
                       )}
                     </div>
@@ -515,7 +550,8 @@ console.log('Connected to:', chain.toString());`
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

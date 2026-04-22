@@ -8,6 +8,7 @@ const Loading = ({ onAnimationComplete, dataReady, pageLevel = false, minDuratio
   const startTimeRef = useRef(null);
   const animationFrameRef = useRef(null);
   const completedRef = useRef(false);
+  const completionTimeoutRef = useRef(null);
 
   // Minimum display time to avoid flashing
   const MIN_DISPLAY_TIME = 100;
@@ -26,7 +27,7 @@ const Loading = ({ onAnimationComplete, dataReady, pageLevel = false, minDuratio
           setProgress(100);
           if (!completedRef.current) {
             completedRef.current = true;
-            setTimeout(() => {
+            completionTimeoutRef.current = setTimeout(() => {
               if (onAnimationComplete) onAnimationComplete();
             }, 100);
           }
@@ -37,7 +38,6 @@ const Loading = ({ onAnimationComplete, dataReady, pageLevel = false, minDuratio
           animationFrameRef.current = requestAnimationFrame(updateProgress);
         } else {
           // Data is ready but minimum time hasn't passed
-          const remainingTime = MIN_DISPLAY_TIME - elapsed;
           const currentProgress = Math.min((elapsed / MIN_DISPLAY_TIME) * 100, 100);
           setProgress(currentProgress);
           
@@ -45,7 +45,7 @@ const Loading = ({ onAnimationComplete, dataReady, pageLevel = false, minDuratio
             animationFrameRef.current = requestAnimationFrame(updateProgress);
           } else if (!completedRef.current) {
             completedRef.current = true;
-            setTimeout(() => {
+            completionTimeoutRef.current = setTimeout(() => {
               if (onAnimationComplete) onAnimationComplete();
             }, 100);
           }
@@ -57,6 +57,9 @@ const Loading = ({ onAnimationComplete, dataReady, pageLevel = false, minDuratio
       return () => {
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
+        }
+        if (completionTimeoutRef.current) {
+          clearTimeout(completionTimeoutRef.current);
         }
       };
     }
